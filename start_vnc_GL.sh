@@ -1,9 +1,9 @@
 #!/bin/bash
 # ========================================================================
-# Start script for DIC docker images (shell)
+# Start script for DIC docker images (VNC)
 #
 # SPDX-FileCopyrightText: 2022-2025 Harald Pretl and Georg Zachl
-# Johannes Kepler University, Department for Integrated Circuits
+# Johannes Kepler University, Department for Integrated Circuits 
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 # ========================================================================
 
 if [ -n "${DRY_RUN}" ]; then
-	echo "[INFO]This is a dry run, all commands will be printed to the shell (Commands printed but not executed are marked with $)!"
+	echo "[INFO] This is a dry run, all commands will be printed to the shell (Commands printed but not executed are marked with $)!"
 	ECHO_IF_DRY_RUN="echo $"
 fi
 
@@ -31,6 +31,19 @@ if [ -z ${DESIGNS+z} ]; then
 		${ECHO_IF_DRY_RUN} mkdir -p "$DESIGNS"
 	fi
 	[ -z "${IIC_OSIC_TOOLS_QUIET}" ] && echo "[INFO] Design directory auto-set to $DESIGNS."
+fi
+
+# Set the host ports, and disable them with 0. Only used if not set as shell variables!
+if [ -z ${WEBSERVER_PORT+z} ]; then
+	WEBSERVER_PORT=80
+fi
+
+if [ -z ${JUPYTER_PORT+z} ]; then
+	JUPYTER_PORT=8888
+fi
+
+if [ -z ${VNC_PORT+z} ]; then
+	VNC_PORT=5901
 fi
 
 if [ -z ${DOCKER_USER+z} ]; then
@@ -45,40 +58,71 @@ if [ -z ${DOCKER_TAG+z} ]; then
 	DOCKER_TAG="latest"
 fi
 
-# Shell starts as root per default.
-if [ -z ${CONTAINER_USER+z} ]; then
-	CONTAINER_USER="0"
-fi
-
-if [ -z ${CONTAINER_GROUP+z} ]; then
-	CONTAINER_GROUP="0"
-fi
-
 if [ -z ${CONTAINER_NAME+z} ]; then
-	CONTAINER_NAME="iic-osic-tools_shell_uid_"$(id -u)
+	CONTAINER_NAME="GL-iic-osic-tools_xvnc_uid_"$(id -u)
+fi
+
+if [[ "$OSTYPE" == "linux"* ]]; then
+	if [ -z ${CONTAINER_USER+z} ]; then
+	        CONTAINER_USER=$(id -u)
+	fi
+
+	if [ -z ${CONTAINER_GROUP+z} ]; then
+	        CONTAINER_GROUP=$(id -g)
+	fi
+else
+	if [ -z ${CONTAINER_USER+z} ]; then
+			CONTAINER_USER=1000
+	fi
+
+	if [ -z ${CONTAINER_GROUP+z} ]; then
+			CONTAINER_GROUP=1000
+	fi
 fi
 
 # Check for UIDs and GIDs below 1000, except 0 (root)
 if [[ ${CONTAINER_USER} -ne 0 ]]  &&  [[ ${CONTAINER_USER} -lt 1000 ]]; then
-	prt_str="# [WARNING] Selected User ID ${CONTAINER_USER} is below 1000. This ID might interfere with User-IDs inside the container and cause undefined behavior! #"
-	printf -- '#%.0s' $(seq 1 ${#prt_str})
-	echo
-	echo "${prt_str}"
-	printf -- '#%.0s' $(seq 1 ${#prt_str})
-	echo
+        prt_str="# [WARNING] Selected User ID ${CONTAINER_USER} is below 1000. This ID might interfere with User-IDs inside the container and cause undefined behavior! #"
+        printf -- '#%.0s' $(seq 1 ${#prt_str})
+        echo
+        echo "${prt_str}"
+        printf -- '#%.0s' $(seq 1 ${#prt_str})
+        echo
 fi
 
 if [[ ${CONTAINER_GROUP} -ne 0 ]]  && [[ ${CONTAINER_GROUP} -lt 1000 ]]; then
-	prt_str="# [WARNING] Selected Group ID ${CONTAINER_GROUP} is below 1000. This ID might interfere with Group-IDs inside the container and cause undefined behavior! #"
-	printf -- '#%.0s' $(seq 1 ${#prt_str})
-	echo
-	echo "${prt_str}"
-	printf -- '#%.0s' $(seq 1 ${#prt_str})
-	echo
+        prt_str="# [WARNING] Selected Group ID ${CONTAINER_GROUP} is below 1000. This ID might interfere with Group-IDs inside the container and cause undefined behavior! #"
+        printf -- '#%.0s' $(seq 1 ${#prt_str})
+        echo
+        echo "${prt_str}"
+        printf -- '#%.0s' $(seq 1 ${#prt_str})
+        echo
+fi
+
+# Processing ports and other parameters
+PARAMS=""
+if [ "$WEBSERVER_PORT" -gt 0 ]; then
+	PARAMS="$PARAMS -p $WEBSERVER_PORT:80"
+fi
+
+if [ "$JUPYTER_PORT" -gt 0 ]; then
+	PARAMS="$PARAMS -p $JUPYTER_PORT:8888"
+fi
+
+if [ "$VNC_PORT" -gt 0 ]; then
+	PARAMS="$PARAMS -p $VNC_PORT:5901"
+fi
+
+if [ -n "${VNC_PW}" ]; then
+	PARAMS="${PARAMS} -e VNC_PW=${VNC_PW}"
 fi
 
 if [ -n "${IIC_OSIC_TOOLS_QUIET}" ]; then
 	DOCKER_EXTRA_PARAMS="${DOCKER_EXTRA_PARAMS} -e IIC_OSIC_TOOLS_QUIET=1"
+fi
+
+if [ -n "${DOCKER_EXTRA_PARAMS}" ]; then
+	PARAMS="${PARAMS} ${DOCKER_EXTRA_PARAMS}"
 fi
 
 # Check if the container exists and if it is running.
@@ -104,15 +148,15 @@ elif [ "$(docker ps -aq -f name="${CONTAINER_NAME}")" ]; then
 	read -r -n 1 k <&1
 	echo
 	if [[ $k = s ]] ; then
-		${ECHO_IF_DRY_RUN} docker start -a -i "${CONTAINER_NAME}"
+		${ECHO_IF_DRY_RUN} docker start "${CONTAINER_NAME}"
 	elif [[ $k = r ]] ; then
 		${ECHO_IF_DRY_RUN} docker rm "${CONTAINER_NAME}"
 	fi
 else
 	[ -z "${IIC_OSIC_TOOLS_QUIET}" ] && echo "[INFO] Container does not exist, creating ${CONTAINER_NAME} ..."
-	# Finally, run the container, and set DISPLAY to the local display number
+	# Finally, run the container, and sets DISPLAY to the local display number
 	#${ECHO_IF_DRY_RUN} docker pull "${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG}"
 	# Disable SC2086, $PARAMS must be globbed and splitted.
 	# shellcheck disable=SC2086
-	${ECHO_IF_DRY_RUN} docker run -it --name "${CONTAINER_NAME}" --user "${CONTAINER_USER}:${CONTAINER_GROUP}" -e "DISPLAY=${DISP}" $DOCKER_EXTRA_PARAMS -v "${DESIGNS}:/foss/designs:rw" "${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG}" -s /bin/bash
+	${ECHO_IF_DRY_RUN} docker run -d --user "${CONTAINER_USER}:${CONTAINER_GROUP}" $PARAMS -v "$DESIGNS:/foss/designs:rw" --name "${CONTAINER_NAME}" "${DOCKER_USER}/${DOCKER_IMAGE}:${DOCKER_TAG}" > /dev/null
 fi

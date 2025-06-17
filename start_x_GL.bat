@@ -40,10 +40,21 @@ IF "%DOCKER_TAG%"=="" SET DOCKER_TAG=latest
 IF "%CONTAINER_USER%"=="" SET CONTAINER_USER=1000
 IF "%CONTAINER_GROUP%"=="" SET CONTAINER_GROUP=1000
 
-IF "%CONTAINER_NAME%"=="" SET CONTAINER_NAME=iic-osic-tools_xserver
+IF "%CONTAINER_NAME%"=="" SET CONTAINER_NAME=GL-iic-osic-tools_xserver
+
+IF "%JUPYTER_PORT%"=="" (
+  SET /a JUPYTER_PORT=8888
+) ELSE (
+  SET /a JUPYTER_PORT=%JUPYTER_PORT%
+)
+echo JUPYTER_PORT port set to %JUPYTER_PORT%
+
 
 IF "%DISP%"=="" SET DISP=:0
 IF "%WAYLAND_DISP%"=="" SET WAYLAND_DISP=wayland-0
+IF %JUPYTER_PORT% GTR 0 (
+  SET PARAMS=%PARAMS% -p %JUPYTER_PORT%:8888
+)
 
 IF %CONTAINER_USER% NEQ 0 if %CONTAINER_USER% LSS 1000 echo WARNING: Selected User ID %CONTAINER_USER% is below 1000. This ID might interfere with User-IDs inside the container and cause undefined behaviour!
 IF %CONTAINER_GROUP% NEQ 0 if %CONTAINER_GROUP% LSS 1000 echo WARNING: Selected Group ID %CONTAINER_GROUP% is below 1000. This ID might interfere with Group-IDs inside the container and cause undefined behaviour!

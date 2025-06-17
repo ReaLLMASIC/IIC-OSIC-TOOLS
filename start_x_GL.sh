@@ -25,7 +25,7 @@ if [ -n "${DRY_RUN}" ]; then
 fi
 
 if [ -z ${CONTAINER_NAME+z} ]; then
-	CONTAINER_NAME="iic-osic-tools_xserver_uid_"$(id -u)
+	CONTAINER_NAME="GL-iic-osic-tools_xserver_uid_"$(id -u)
 fi
 
 # Check if the container exists and if it is running.
@@ -56,6 +56,10 @@ if [ -z ${DESIGNS+z} ]; then
 fi
 
 PARAMS="$PARAMS -v ${DESIGNS}:/foss/designs:rw"
+
+if [ -z ${JUPYTER_PORT+z} ]; then
+	JUPYTER_PORT=8888
+fi
 
 if [ -z ${DOCKER_USER+z} ]; then
 	DOCKER_USER="hpretl"
@@ -181,6 +185,10 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
 else
 	echo "[ERROR] Not setup for ${OSTYPE}!"
 	exit 1
+fi
+
+if [ "$JUPYTER_PORT" -gt 0 ]; then
+	PARAMS="$PARAMS -p $JUPYTER_PORT:8888"
 fi
 
 if [ -n "${FORCE_LIBGL_INDIRECT}" ]; then
